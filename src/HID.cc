@@ -54,6 +54,7 @@ private:
   Napi::Value write(const Napi::CallbackInfo &info);
   Napi::Value setNonBlocking(const Napi::CallbackInfo &info);
   Napi::Value getFeatureReport(const Napi::CallbackInfo &info);
+  Napi::Value getInputReport(const Napi::CallbackInfo &info);
   Napi::Value sendFeatureReport(const Napi::CallbackInfo &info);
   Napi::Value readSync(const Napi::CallbackInfo &info);
   Napi::Value readTimeout(const Napi::CallbackInfo &info);
@@ -235,6 +236,41 @@ Napi::Value HID::readTimeout(const Napi::CallbackInfo &info)
   {
     retval.Set(i, Napi::Number::New(env, buff_read[i]));
   }
+  return retval;
+}
+
+Napi::Value HID::getInputReport(const Napi::CallbackInfo &info) {
+  Napi::Env env = info.Env();
+
+  unsigned char buff_read[64];
+
+  buff_read[0] = 0x07;
+  buff_read[1] = 0x00;
+  buff_read[2] = 0x00;
+
+  int ret = hid_get_input_report(_hidHandle, buff_read, sizeof buff_read);
+
+  if (ret < 0) {
+    Napi::TypeError::New(env, "could not get input report from device.").ThrowAsJavaScriptException();
+    return env.Null();
+  }
+
+  uint16_t bytesRead = buff_read[1];
+
+  if (bytesRead == 0) {
+    return env.Null();
+  }
+
+  if (bytesRead > 64) {
+    return env.Null();
+  }
+
+  Napi::Array retval = Napi::Array::New(env, bytesRead + 3);
+
+  for (int i = 0; i < (bytesRead + 3); i++) {
+    retval.Set(i, Napi::Number::New(env, buff_read[i]));
+  }
+
   return retval;
 }
 
@@ -528,6 +564,7 @@ void HID::Initialize(Napi::Env &env, Napi::Object &exports)
                                                     InstanceMethod("read", &HID::read),
                                                     InstanceMethod("write", &HID::write, napi_enumerable),
                                                     InstanceMethod("getFeatureReport", &HID::getFeatureReport, napi_enumerable),
+                                                    InstanceMethod("getInputReport", &HID::getInputReport, napi_enumerable),
                                                     InstanceMethod("sendFeatureReport", &HID::sendFeatureReport, napi_enumerable),
                                                     InstanceMethod("setNonBlocking", &HID::setNonBlocking, napi_enumerable),
                                                     InstanceMethod("readSync", &HID::readSync, napi_enumerable),
